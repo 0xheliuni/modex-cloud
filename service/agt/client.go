@@ -107,6 +107,53 @@ func (c *Client) UpdateChannel(ctx context.Context, p ChannelPayload) error {
 	return nil
 }
 
+// usageResponse is the AGT envelope for GET /api/channel/{id}; we only read the
+// consumed quota (new-api units, 500000 = $1).
+type usageResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    struct {
+		Id        int   `json:"id"`
+		UsedQuota int64 `json:"used_quota"`
+	} `json:"data"`
+}
+
+// GetChannelUsage fetches a single channel's consumed quota from AGT via
+// GET /api/channel/{id} (new-api compatible). Returns the used_quota value.
+func (c *Client) GetChannelUsage(ctx context.Context, remoteId int) (int64, error) {
+	if remoteId == 0 {
+		return 0, fmt.Errorf("usage query requires a remote id")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		fmt.Sprintf("%s/api/channel/%d", c.baseURL, remoteId), nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("agt request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return 0, err
+	}
+	if resp.StatusCode >= 500 {
+		return 0, fmt.Errorf("agt server error: HTTP %d", resp.StatusCode)
+	}
+	var out usageResponse
+	if err := common.Unmarshal(raw, &out); err != nil {
+		return 0, fmt.Errorf("agt returned non-JSON (HTTP %d)", resp.StatusCode)
+	}
+	if !out.Success {
+		return 0, fmt.Errorf("agt rejected usage query: %s", out.Message)
+	}
+	return out.Data.UsedQuota, nil
+}
+
 func (c *Client) do(ctx context.Context, method, path string, body []byte) (*apiResponse, error) {
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, bytes.NewReader(body))
 	if err != nil {

@@ -148,3 +148,84 @@ func TestSyncChannel_FailureRetainsKey(t *testing.T) {
 		t.Errorf("key_state = %q, want failed", reloaded.KeyState)
 	}
 }
+
+// TestRefreshUsage_PullsQuotaFromAGT proves usage refresh decrypts only the
+// platform token, calls AGT's GET endpoint, and stores the consumed quota —
+// even for a channel whose key was already destroyed.
+func TestRefreshUsage_PullsQuotaFromAGT(t *testing.T) {
+	cleanup, err := model.InitForTest()
+	if err != nil {
+		t.Fatalf("init db: %v", err)
+	}
+	defer cleanup()
+	vault, _ := crypto.New(make([]byte, crypto.MasterKeyLen))
+	crypto.SetGlobal(vault)
+	defer crypto.SetGlobal(nil)
+
+	const agtToken = "agt-bearer-token"
+	var gotAuth, gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth, gotPath = r.Header.Get("Authorization"), r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"data":{"id":777,"used_quota":2500000}}`))
+	}))
+	defer srv.Close()
+
+	platform := &model.Platform{Name: "AGT", BaseURL: srv.URL, Status: constant.StatusEnabled}
+	_ = platform.Create()
+	sealedTok, _ := crypto.GlobalSealer().SealString(agtToken)
+	_ = platform.SetAGTToken(string(sealedTok), crypto.Last4(agtToken))
+
+	// A synced-and-wiped channel: no local key, but it has a RemoteId.
+	ch := &model.Channel{
+		UserId: 1, PlatformId: platform.Id, Name: "modex-alice-1",
+		Type: constant.ChannelTypeOpenAI, RemoteId: 777,
+		KeyState: constant.KeyStateSynced, Models: "gpt-4o",
+	}
+	_ = ch.Create()
+
+	used, err := RefreshUsage(context.Background(), ch.Id)
+	if err != nil {
+		t.Fatalf("RefreshUsage: %v", err)
+	}
+	if used != 2500000 {
+		t.Errorf("used = %d, want 2500000", used)
+	}
+	if gotAuth != "Bearer "+agtToken {
+		t.Errorf("auth header = %q, want bearer %q", gotAuth, agtToken)
+	}
+	if gotPath != "/api/channel/777" {
+		t.Errorf("path = %q, want /api/channel/777", gotPath)
+	}
+
+	// Persisted on the channel.
+	reloaded, _ := model.GetChannelById(ch.Id)
+	if reloaded.UsedQuota != 2500000 {
+		t.Errorf("persisted used_quota = %d, want 2500000", reloaded.UsedQuota)
+	}
+}
+
+// TestRefreshUsage_RejectsUnsyncedChannel proves a never-synced channel (no
+// RemoteId) cannot report usage.
+func TestRefreshUsage_RejectsUnsyncedChannel(t *testing.T) {
+	cleanup, err := model.InitForTest()
+	if err != nil {
+		t.Fatalf("init db: %v", err)
+	}
+	defer cleanup()
+	vault, _ := crypto.New(make([]byte, crypto.MasterKeyLen))
+	crypto.SetGlobal(vault)
+	defer crypto.SetGlobal(nil)
+
+	platform := &model.Platform{Name: "AGT", BaseURL: "http://unused", Status: constant.StatusEnabled}
+	_ = platform.Create()
+	ch := &model.Channel{
+		UserId: 1, PlatformId: platform.Id, Type: constant.ChannelTypeOpenAI,
+		KeyState: constant.KeyStatePending,
+	}
+	_ = ch.Create()
+
+	if _, err := RefreshUsage(context.Background(), ch.Id); err == nil {
+		t.Fatal("expected error for channel without a remote id")
+	}
+}

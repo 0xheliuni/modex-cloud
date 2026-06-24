@@ -64,3 +64,51 @@ func TestPlatform_DeleteRefusedWhenInUse(t *testing.T) {
 		t.Errorf("delete in-use platform: want ErrPlatformInUse, got %v", err)
 	}
 }
+
+// TestPlatform_GroupsRoundTrip proves group config (name + show-amount toggle)
+// survives encode/decode and the helper accessors behave.
+func TestPlatform_GroupsRoundTrip(t *testing.T) {
+	setupTestDB(t)
+	groups := []PlatformGroup{
+		{Name: "vip", ShowAmount: true},
+		{Name: "default", ShowAmount: false},
+	}
+	p := &Platform{
+		Name: "p", BaseURL: "http://x", Status: constant.StatusEnabled,
+		NamePrefix: "modex", Groups: EncodeGroups(groups),
+	}
+	if err := p.Create(); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	reloaded, _ := GetPlatformById(p.Id)
+
+	if reloaded.NamePrefix != "modex" {
+		t.Errorf("name_prefix = %q, want modex", reloaded.NamePrefix)
+	}
+	if reloaded.PrimaryGroupName() != "vip" {
+		t.Errorf("primary group = %q, want vip", reloaded.PrimaryGroupName())
+	}
+	if !reloaded.ShowAmountForGroup("vip") {
+		t.Error("vip should show amount")
+	}
+	if reloaded.ShowAmountForGroup("default") {
+		t.Error("default should NOT show amount")
+	}
+	if reloaded.ShowAmountForGroup("unknown") {
+		t.Error("unknown group must default to hidden")
+	}
+}
+
+// TestPlatform_NoGroupsConfigured proves the helpers are safe with no groups.
+func TestPlatform_NoGroupsConfigured(t *testing.T) {
+	setupTestDB(t)
+	p := &Platform{Name: "p", BaseURL: "http://x", Status: constant.StatusEnabled}
+	_ = p.Create()
+	reloaded, _ := GetPlatformById(p.Id)
+	if reloaded.PrimaryGroupName() != "" {
+		t.Errorf("primary group = %q, want empty", reloaded.PrimaryGroupName())
+	}
+	if reloaded.ShowAmountForGroup("") {
+		t.Error("empty group must default to hidden")
+	}
+}

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Card, Table, Button, Modal, Form, Toast, Tag, Space, Popconfirm, Typography, Banner } from '@douyinfe/semi-ui';
+import { Card, Table, Button, Modal, Form, Toast, Tag, Space, Popconfirm, Typography, Banner, ArrayField } from '@douyinfe/semi-ui';
 import { IconPlus, IconDelete, IconEdit } from '@douyinfe/semi-icons';
 import { adminApi } from '../lib/api.js';
 import { CHANNEL_TYPES } from '../lib/constants.js';
@@ -35,15 +35,21 @@ export default function AdminPlatforms() {
     const v = await formRef.current.formApi.validate().catch(() => null);
     if (!v) return;
     setSubmitting(true);
+    const groups = (v.groups || [])
+      .filter((g) => g && g.name && g.name.trim())
+      .map((g) => ({ name: g.name.trim(), show_amount: !!g.show_amount }));
     const body = {
       name: v.name,
       base_url: v.base_url,
       agt_token: v.agt_token || '', // empty on edit = keep existing
       status: v.status ? 1 : 2,
+      name_prefix: v.name_prefix || '',
+      groups,
+      // The validation group whitelist is derived from the configured groups so
+      // the system-assigned group always passes ChannelUpload validation.
+      allowed_groups: groups.map((g) => g.name),
       allowed_types: v.allowed_types || [],
       allowed_models: v.allowed_models || [],
-      allowed_groups: v.allowed_groups || [],
-      base_url_allow: v.base_url_allow || [],
     };
     try {
       if (editing) await adminApi.updatePlatform(editing.id, body);
@@ -67,6 +73,24 @@ export default function AdminPlatforms() {
     { title: 'ID', dataIndex: 'id', width: 60 },
     { title: '名称', dataIndex: 'name' },
     { title: 'Base URL', dataIndex: 'base_url', render: (v) => <Text type="tertiary">{v}</Text> },
+    { title: '名称前缀', dataIndex: 'name_prefix', render: (v) => (v ? <Text code>{v}</Text> : <Text type="tertiary">无</Text>) },
+    {
+      title: '分组',
+      dataIndex: 'groups',
+      render: (s) => {
+        const gs = parseJSON(s, []);
+        if (!gs.length) return <Text type="tertiary">未配置</Text>;
+        return (
+          <Space wrap>
+            {gs.map((g) => (
+              <Tag key={g.name} color={g.show_amount ? 'green' : 'grey'}>
+                {g.name}{g.show_amount ? ' · 显示金额' : ''}
+              </Tag>
+            ))}
+          </Space>
+        );
+      },
+    },
     { title: 'AGT 令牌', dataIndex: 'agt_token_last4', render: (v) => <Text code>{v || '未设置'}</Text> },
     { title: '状态', dataIndex: 'status', render: (s) => <Tag color={s === 1 ? 'green' : 'grey'}>{s === 1 ? '启用' : '禁用'}</Tag> },
     {
@@ -87,12 +111,13 @@ export default function AdminPlatforms() {
         name: editing.name,
         base_url: editing.base_url,
         status: editing.status === 1,
+        name_prefix: editing.name_prefix || '',
+        groups: parseJSON(editing.groups, []),
         allowed_types: parseJSON(editing.allowed_types, []),
         allowed_models: parseJSON(editing.allowed_models, []),
         allowed_groups: parseJSON(editing.allowed_groups, []),
-        base_url_allow: parseJSON(editing.base_url_allow, []),
       }
-    : { status: true };
+    : { status: true, groups: [{ name: 'default', show_amount: false }] };
 
   return (
     <div>
@@ -126,12 +151,36 @@ export default function AdminPlatforms() {
             rules={editing ? [] : [{ required: true, message: '请输入 AGT 令牌' }]}
             placeholder={editing ? '留空=不修改' : 'Bearer 令牌，加密存储'}
           />
+          <Form.Input
+            field="name_prefix"
+            label="渠道名称前缀"
+            placeholder="如 modex（渠道名将自动生成为 前缀-用户名-序号）"
+          />
+          <Form.Slot label="分组配置（每组可单独控制是否向供应商显示消耗金额）">
+            <ArrayField field="groups">
+              {({ add, arrayFields }) => (
+                <div>
+                  {arrayFields.map(({ field, key, remove }) => (
+                    <Space key={key} align="end" style={{ marginBottom: 8 }}>
+                      <Form.Input
+                        field={`${field}[name]`}
+                        noLabel
+                        placeholder="分组名，如 default / vip"
+                        style={{ width: 220 }}
+                      />
+                      <Form.Switch field={`${field}[show_amount]`} label="显示金额" labelPosition="left" />
+                      <Button type="danger" theme="borderless" icon={<IconDelete />} onClick={remove} />
+                    </Space>
+                  ))}
+                  <Button theme="light" icon={<IconPlus />} onClick={add}>添加分组</Button>
+                </div>
+              )}
+            </ArrayField>
+          </Form.Slot>
           <Form.Select field="allowed_types" label="允许的提供商类型（空=全部）" multiple style={{ width: '100%' }}>
             {CHANNEL_TYPES.map((t) => (<Form.Select.Option key={t.value} value={t.value}>{t.label}</Form.Select.Option>))}
           </Form.Select>
           <Form.Select field="allowed_models" label="允许的模型（空=不限；回车添加）" multiple filter allowCreate style={{ width: '100%' }} placeholder="如 gpt-4o" />
-          <Form.Select field="allowed_groups" label="允许的分组（空=不限）" multiple filter allowCreate style={{ width: '100%' }} />
-          <Form.Select field="base_url_allow" label="Base URL 白名单（空=不限；前缀匹配）" multiple filter allowCreate style={{ width: '100%' }} placeholder="https://api.openai.com" />
           <Form.Switch field="status" label="启用" />
         </Form>
       </Modal>

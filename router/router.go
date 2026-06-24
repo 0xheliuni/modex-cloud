@@ -55,6 +55,7 @@ func Setup(sessionSecret string) *gin.Engine {
 		supplier.PUT("/channels/:id", controller.UpdateChannel)
 		supplier.DELETE("/channels/:id", controller.DeleteChannel)
 		supplier.POST("/channels/:id/resync", controller.ResyncChannel)
+		supplier.POST("/channels/:id/refresh-usage", controller.RefreshUsage)
 		// Suppliers can see which platforms they are authorized for (no secrets).
 		supplier.GET("/platforms", controller.ListMyPlatforms)
 	}

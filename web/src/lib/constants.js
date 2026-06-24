@@ -24,3 +24,10 @@ export const SYNC_STATUS = {
   1: { text: '成功', color: 'green' },
   2: { text: '失败', color: 'red' },
 };
+
+// AGT / new-api quota unit: 500000 = $1. Formats consumed quota as a USD string.
+export const QUOTA_PER_UNIT = 500000;
+export function formatQuota(usedQuota) {
+  const n = Number(usedQuota) || 0;
+  return `$${(n / QUOTA_PER_UNIT).toFixed(2)}`;
+}

@@ -53,6 +53,7 @@ export const supplierApi = {
   updateChannel: (id, body) => api.put(`/api/supplier/channels/${id}`, body),
   deleteChannel: (id) => api.del(`/api/supplier/channels/${id}`),
   resync: (id) => api.post(`/api/supplier/channels/${id}/resync`),
+  refreshUsage: (id) => api.post(`/api/supplier/channels/${id}/refresh-usage`),
 };
 
 export const adminApi = {

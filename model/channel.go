@@ -40,6 +40,10 @@ type Channel struct {
 	Models  string `json:"models" gorm:"type:text"`                   // comma-separated, AGT-native
 	Group   string `json:"group" gorm:"column:grp;type:varchar(100)"` // 'group' is reserved; store as grp
 
+	// --- usage (pulled back from AGT; new-api quota units, 500000 = $1) ---
+	UsedQuota     int64 `json:"used_quota" gorm:"default:0"` // consumed quota reported by AGT
+	UsageSyncTime int64 `json:"usage_sync_time"`             // last time UsedQuota was refreshed
+
 	// --- AGT sync bookkeeping ---
 	RemoteId     int    `json:"remote_id" gorm:"index"` // template id returned by AGT
 	SyncStatus   int    `json:"sync_status" gorm:"default:0;index"`
@@ -252,4 +256,44 @@ func SoftDeleteForUser(id, userId int) error {
 		return ErrChannelNotFound
 	}
 	return nil
+}
+
+// SetUsage records the consumed quota pulled back from AGT for this channel. It
+// never touches key/sync state, so it is safe at any point in the lifecycle.
+func (c *Channel) SetUsage(usedQuota int64) error {
+	now := nowUnix()
+	if err := DB.Model(c).Updates(map[string]any{
+		"used_quota":      usedQuota,
+		"usage_sync_time": now,
+	}).Error; err != nil {
+		return err
+	}
+	c.UsedQuota = usedQuota
+	c.UsageSyncTime = now
+	return nil
+}
+
+// NextChannelSeq returns the next 1-based sequence number for a supplier's
+// channels on one platform, counting across ALL rows (including soft-deleted)
+// so a generated name is never reused after a delete. Used to build the
+// system-generated channel name "{prefix}-{username}-{seq}".
+func NextChannelSeq(userId, platformId int) (int, error) {
+	var n int64
+	err := DB.Unscoped().Model(&Channel{}).
+		Where("user_id = ? AND platform_id = ?", userId, platformId).Count(&n).Error
+	if err != nil {
+		return 0, err
+	}
+	return int(n) + 1, nil
+}
+
+// ChannelNameExists reports whether a channel with this exact name already
+// exists for the supplier+platform (across all rows), so the generator can skip
+// collisions when sequence numbers and deletes get out of step.
+func ChannelNameExists(userId, platformId int, name string) (bool, error) {
+	var n int64
+	err := DB.Unscoped().Model(&Channel{}).
+		Where("user_id = ? AND platform_id = ? AND name = ?", userId, platformId, name).
+		Count(&n).Error
+	return n > 0, err
 }

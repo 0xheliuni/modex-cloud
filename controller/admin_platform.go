@@ -16,14 +16,16 @@ import (
 // --- Admin: target-platform management (参数管理) ---
 
 type platformRequest struct {
-	Name          string   `json:"name"`
-	BaseURL       string   `json:"base_url"`
-	AGTToken      string   `json:"agt_token"` // write-only; sealed, never returned
-	Status        int      `json:"status"`
-	AllowedTypes  []int    `json:"allowed_types"`
-	AllowedModels []string `json:"allowed_models"`
-	AllowedGroups []string `json:"allowed_groups"`
-	BaseURLAllow  []string `json:"base_url_allow"`
+	Name          string                `json:"name"`
+	BaseURL       string                `json:"base_url"`
+	AGTToken      string                `json:"agt_token"` // write-only; sealed, never returned
+	Status        int                   `json:"status"`
+	NamePrefix    string                `json:"name_prefix"` // prefix for auto-generated channel names
+	Groups        []model.PlatformGroup `json:"groups"`      // downstream groups + show-amount toggles
+	AllowedTypes  []int                 `json:"allowed_types"`
+	AllowedModels []string              `json:"allowed_models"`
+	AllowedGroups []string              `json:"allowed_groups"`
+	BaseURLAllow  []string              `json:"base_url_allow"`
 }
 
 // ListPlatforms returns all target platforms. Sealed AGT tokens never serialize.
@@ -56,6 +58,8 @@ func CreatePlatform(c *gin.Context) {
 		Name:          req.Name,
 		BaseURL:       req.BaseURL,
 		Status:        orDefault(req.Status, constant.StatusEnabled),
+		NamePrefix:    req.NamePrefix,
+		Groups:        model.EncodeGroups(req.Groups),
 		AllowedTypes:  common.EncodeJSON(req.AllowedTypes),
 		AllowedModels: common.EncodeJSON(req.AllowedModels),
 		AllowedGroups: common.EncodeJSON(req.AllowedGroups),
@@ -103,6 +107,8 @@ func UpdatePlatform(c *gin.Context) {
 	if req.Status != 0 {
 		p.Status = req.Status
 	}
+	p.NamePrefix = req.NamePrefix
+	p.Groups = model.EncodeGroups(req.Groups)
 	p.AllowedTypes = common.EncodeJSON(req.AllowedTypes)
 	p.AllowedModels = common.EncodeJSON(req.AllowedModels)
 	p.AllowedGroups = common.EncodeJSON(req.AllowedGroups)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,12 +26,19 @@ import (
 
 type createChannelRequest struct {
 	PlatformId int    `json:"platform_id"`
-	Name       string `json:"name"`
 	Type       int    `json:"type"`
-	Key        string `json:"key"` // write-only: sealed then discarded
-	BaseURL    string `json:"base_url"`
+	Key        string `json:"key"`    // write-only: sealed then discarded
 	Models     string `json:"models"` // comma-separated, AGT-native
-	Group      string `json:"group"`
+	// Name, BaseURL and Group are intentionally NOT accepted from suppliers:
+	// the name is system-generated, the group is admin-configured per platform,
+	// and base_url is no longer used.
+}
+
+// channelView is the supplier-facing shape of a channel, augmented with the
+// per-platform "show amount" decision so the UI knows whether to render usage.
+type channelView struct {
+	model.Channel
+	ShowAmount bool `json:"show_amount"`
 }
 
 // ListChannels returns the supplier's own channels, never including the key.
@@ -44,7 +52,26 @@ func ListChannels(c *gin.Context) {
 		common.ApiError(c, http.StatusInternalServerError, "failed to list channels")
 		return
 	}
-	common.ApiSuccess(c, gin.H{"items": channels, "total": total})
+
+	// Resolve the show-amount toggle per channel from its platform's group config.
+	platformCache := map[int]*model.Platform{}
+	views := make([]channelView, 0, len(channels))
+	for i := range channels {
+		ch := channels[i]
+		p := platformCache[ch.PlatformId]
+		if p == nil {
+			if loaded, err := model.GetPlatformById(ch.PlatformId); err == nil {
+				p = loaded
+				platformCache[ch.PlatformId] = p
+			}
+		}
+		show := false
+		if p != nil {
+			show = p.ShowAmountForGroup(ch.Group)
+		}
+		views = append(views, channelView{Channel: ch, ShowAmount: show})
+	}
+	common.ApiSuccess(c, gin.H{"items": views, "total": total})
 }
 
 // CreateChannel accepts an uploaded key, validates it against the supplier's
@@ -68,13 +95,16 @@ func CreateChannel(c *gin.Context) {
 		return
 	}
 
-	// Whitelist validation (type/models/group/base_url).
+	// Group is admin-configured per platform; the supplier no longer chooses it.
+	// base_url is no longer used (left empty so AGT applies its provider default).
+	group := platform.PrimaryGroupName()
+
+	// Whitelist validation (type/models/group). base_url omitted by design.
 	res, err := validate.ChannelUpload(validate.ChannelInput{
 		PlatformId: req.PlatformId,
 		Type:       req.Type,
 		Models:     strings.Split(req.Models, ","),
-		Group:      req.Group,
-		BaseURL:    req.BaseURL,
+		Group:      group,
 	}, platform, grant)
 	if err != nil {
 		common.ApiError(c, http.StatusBadRequest, err.Error())
@@ -106,16 +136,23 @@ func CreateChannel(c *gin.Context) {
 		return
 	}
 
+	// System-generated channel name: "{prefix}-{username}-{seq}".
+	name, err := generateChannelName(userId, req.PlatformId, middleware.CurrentUsername(c), platform.NamePrefix)
+	if err != nil {
+		common.ApiError(c, http.StatusInternalServerError, "failed to generate channel name")
+		return
+	}
+
 	ch := &model.Channel{
 		UserId:         userId,
 		PlatformId:     req.PlatformId,
-		Name:           req.Name,
+		Name:           name,
 		Type:           req.Type,
 		EncKey:         string(sealed),
 		KeyFingerprint: fingerprint,
 		KeyLast4:       last4,
 		KeyState:       constant.KeyStatePending,
-		BaseURL:        res.BaseURL,
+		BaseURL:        "",
 		Models:         res.ModelsCSV,
 		Group:          res.Group,
 	}
@@ -136,15 +173,14 @@ func CreateChannel(c *gin.Context) {
 }
 
 type updateChannelRequest struct {
-	Name    string `json:"name"`
-	Key     string `json:"key"` // optional: present => rotate key; absent => keep
-	BaseURL string `json:"base_url"`
-	Models  string `json:"models"`
-	Group   string `json:"group"`
+	Key    string `json:"key"`    // optional: present => rotate key; absent => keep
+	Models string `json:"models"` // optional: edit the model list
+	// Name, BaseURL and Group are not supplier-editable (system/admin owned).
 }
 
-// UpdateChannel edits metadata and optionally rotates the key (preserve-on-absent
-// semantics, matching the AGT contract).
+// UpdateChannel edits the model list and optionally rotates the key
+// (preserve-on-absent semantics, matching the AGT contract). The channel name,
+// group and base_url are not supplier-editable.
 func UpdateChannel(c *gin.Context) {
 	userId := middleware.CurrentUserId(c)
 	id, ok := pathId(c)
@@ -169,32 +205,26 @@ func UpdateChannel(c *gin.Context) {
 		return
 	}
 
-	// Re-validate the resulting metadata.
+	// Re-validate the resulting metadata. Group stays admin-controlled; keep the
+	// channel's current group (or the platform's, in case config changed).
 	models := ch.Models
 	if req.Models != "" {
 		models = req.Models
 	}
 	group := ch.Group
-	if req.Group != "" {
-		group = req.Group
-	}
-	baseURL := ch.BaseURL
-	if req.BaseURL != "" {
-		baseURL = req.BaseURL
+	if group == "" {
+		group = platform.PrimaryGroupName()
 	}
 	res, err := validate.ChannelUpload(validate.ChannelInput{
 		PlatformId: ch.PlatformId, Type: ch.Type,
-		Models: strings.Split(models, ","), Group: group, BaseURL: baseURL,
+		Models: strings.Split(models, ","), Group: group,
 	}, platform, grant)
 	if err != nil {
 		common.ApiError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	if req.Name != "" {
-		ch.Name = req.Name
-	}
-	ch.Models, ch.Group, ch.BaseURL = res.ModelsCSV, res.Group, res.BaseURL
+	ch.Models, ch.Group, ch.BaseURL = res.ModelsCSV, res.Group, ""
 	if err := ch.UpdateMetadata(); err != nil {
 		common.ApiError(c, http.StatusInternalServerError, "failed to update channel")
 		return
@@ -260,7 +290,63 @@ func ResyncChannel(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{"id": ch.Id})
 }
 
+// RefreshUsage pulls the channel's consumed amount from AGT and returns the
+// updated value. Only shown to the supplier when the platform's group config
+// enables it, but the refresh itself is always allowed for the owner.
+func RefreshUsage(c *gin.Context) {
+	userId := middleware.CurrentUserId(c)
+	id, ok := pathId(c)
+	if !ok {
+		common.ApiError(c, http.StatusBadRequest, "invalid id")
+		return
+	}
+	ch, err := model.GetChannelForUser(id, userId)
+	if err != nil {
+		common.ApiError(c, http.StatusNotFound, "channel not found")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
+	used, err := sync.RefreshUsage(ctx, ch.Id)
+	if err != nil {
+		common.ApiError(c, http.StatusBadGateway, "failed to refresh usage: "+err.Error())
+		return
+	}
+	common.ApiSuccess(c, gin.H{"id": ch.Id, "used_quota": used})
+}
+
 // --- helpers ---
+
+// generateChannelName builds a system-generated channel name of the form
+// "{prefix}-{username}-{seq}". The prefix is admin-configured per platform; when
+// empty the name is just "{username}-{seq}". It probes for collisions so a
+// sequence reused after deletes still yields a unique name.
+func generateChannelName(userId, platformId int, username, prefix string) (string, error) {
+	seq, err := model.NextChannelSeq(userId, platformId)
+	if err != nil {
+		return "", err
+	}
+	build := func(n int) string {
+		base := username + "-" + strconv.Itoa(n)
+		if strings.TrimSpace(prefix) != "" {
+			return prefix + "-" + base
+		}
+		return base
+	}
+	// Probe forward until the name is free (bounded to avoid an infinite loop).
+	for i := 0; i < 1000; i++ {
+		name := build(seq + i)
+		exists, err := model.ChannelNameExists(userId, platformId, name)
+		if err != nil {
+			return "", err
+		}
+		if !exists {
+			return name, nil
+		}
+	}
+	return build(seq), nil
+}
 
 // authorizePlatform confirms the platform exists, is enabled, and the supplier
 // holds an enabled grant for it. Returns both for downstream validation.

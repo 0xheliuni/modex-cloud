@@ -102,3 +102,40 @@ func syncMetadataOnly(ctx context.Context, client *agt.Client, ch *model.Channel
 	}
 	return ch.MarkMetadataSynced()
 }
+
+// RefreshUsage pulls a channel's consumed quota back from its AGT platform and
+// stores it locally. It decrypts only the platform's AGT token (never the
+// channel key), so it respects destroy-by-default: a synced-and-wiped channel
+// still has a RemoteId and can report usage.
+//
+// Like SyncChannel, this lives in service/sync because it is the only package
+// permitted to open sealed secrets via crypto.SyncOpener().
+func RefreshUsage(ctx context.Context, channelId int) (int64, error) {
+	ch, err := model.GetChannelById(channelId)
+	if err != nil {
+		return 0, err
+	}
+	if ch.RemoteId == 0 {
+		return 0, fmt.Errorf("channel %d has not been synced to AGT yet", ch.Id)
+	}
+	platform, err := model.GetPlatformById(ch.PlatformId)
+	if err != nil {
+		return 0, err
+	}
+
+	tokenBytes, err := crypto.SyncOpener().Open([]byte(platform.AGTTokenEnc))
+	if err != nil {
+		return 0, fmt.Errorf("decrypt platform token: %w", err)
+	}
+	defer crypto.Zeroize(tokenBytes)
+
+	client := agt.NewClient(platform.BaseURL, string(tokenBytes))
+	used, err := client.GetChannelUsage(ctx, ch.RemoteId)
+	if err != nil {
+		return 0, err
+	}
+	if err := ch.SetUsage(used); err != nil {
+		return 0, err
+	}
+	return used, nil
+}

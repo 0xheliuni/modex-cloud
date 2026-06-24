@@ -5,7 +5,7 @@ import {
 } from '@douyinfe/semi-ui';
 import { IconPlus, IconRefresh, IconDelete, IconKey } from '@douyinfe/semi-icons';
 import { supplierApi } from '../lib/api.js';
-import { CHANNEL_TYPES, TYPE_LABEL, KEY_STATE, SYNC_STATUS } from '../lib/constants.js';
+import { CHANNEL_TYPES, TYPE_LABEL, KEY_STATE, SYNC_STATUS, formatQuota } from '../lib/constants.js';
 
 const { Text, Title } = Typography;
 
@@ -57,12 +57,9 @@ export default function SupplierChannels() {
     try {
       await supplierApi.createChannel({
         platform_id: activePlatform,
-        name: values.name,
         type: values.type,
         key: values.key,
-        base_url: values.base_url || '',
         models: Array.isArray(values.models) ? values.models.join(',') : values.models || '',
-        group: values.group || '',
       });
       Toast.success('密钥已上传并加密，正在同步到 AGT');
       setModalOpen(false);
@@ -82,6 +79,20 @@ export default function SupplierChannels() {
       loadChannels(activePlatform);
     } catch (e) {
       Toast.error(e.message);
+    }
+  };
+
+  const [refreshingId, setRefreshingId] = useState(null);
+  const onRefreshUsage = async (id) => {
+    setRefreshingId(id);
+    try {
+      await supplierApi.refreshUsage(id);
+      Toast.success('已刷新消耗金额');
+      loadChannels(activePlatform);
+    } catch (e) {
+      Toast.error(e.message);
+    } finally {
+      setRefreshingId(null);
     }
   };
 
@@ -142,6 +153,34 @@ export default function SupplierChannels() {
     },
   ];
 
+  // Show the consumed-amount column only when the platform enables it for at
+  // least one of the supplier's channels (per-group "show amount" toggle).
+  const showAmountColumn = channels.some((c) => c.show_amount);
+  if (showAmountColumn) {
+    columns.splice(columns.length - 1, 0, {
+      title: '消耗金额',
+      dataIndex: 'used_quota',
+      render: (v, r) =>
+        r.show_amount ? (
+          <Space>
+            <Text strong>{formatQuota(v)}</Text>
+            <Tooltip content="从 AGT 刷新最新消耗">
+              <Button
+                size="small"
+                theme="borderless"
+                icon={<IconRefresh />}
+                loading={refreshingId === r.id}
+                disabled={r.sync_status !== 1}
+                onClick={() => onRefreshUsage(r.id)}
+              />
+            </Tooltip>
+          </Space>
+        ) : (
+          <Text type="tertiary">—</Text>
+        ),
+    });
+  }
+
   if (!platforms.length) {
     return (
       <Empty
@@ -192,11 +231,10 @@ export default function SupplierChannels() {
         <Banner
           type="info"
           closeIcon={null}
-          description={`平台「${current?.name || ''}」允许的类型/模型已根据您的授权限制。`}
+          description={`平台「${current?.name || ''}」的渠道名称、分组由系统/管理员自动配置；您只需选择类型、填写密钥与模型。`}
           style={{ marginBottom: 16 }}
         />
         <Form getFormApi={(api) => (formRef.current = { formApi: api })} labelPosition="top">
-          <Form.Input field="name" label="渠道名称" rules={[{ required: true, message: '请输入名称' }]} placeholder="如 modex-openai-01" />
           <Form.Select field="type" label="提供商类型" rules={[{ required: true, message: '请选择类型' }]} style={{ width: '100%' }} placeholder="选择提供商">
             {allowedTypeOptions.map((t) => (
               <Form.Select.Option key={t.value} value={t.value}>{t.label}</Form.Select.Option>
@@ -223,8 +261,6 @@ export default function SupplierChannels() {
               <Form.Select.Option key={m} value={m}>{m}</Form.Select.Option>
             ))}
           </Form.Select>
-          <Form.Input field="group" label="分组（可选）" placeholder="如 default" />
-          <Form.Input field="base_url" label="Base URL（可选，必须 https）" placeholder="https://..." />
         </Form>
       </Modal>
     </div>
