@@ -1,0 +1,29 @@
+# Secrets & local config — NEVER commit
+.env
+*.env
+!.env.example
+
+# Build artifacts
+agt-vault
+agt-vault.exe
+*.exe
+dist/
+web/node_modules/
+# Keep the embed target dir but ignore its built contents (except the placeholder)
+web/dist/*
+!web/dist/.gitkeep
+
+# Local databases
+*.db
+*.db-journal
+*.sqlite
+
+# Logs & runtime
+*.log
+cookies*.txt
+.server_pid
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

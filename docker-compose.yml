@@ -1,0 +1,45 @@
+services:
+  app:
+    build: .
+    image: agt-vault:latest
+    container_name: agt-vault
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - TZ=Asia/Shanghai
+      # Secrets come from the .env file (see .env.example). Never hard-code here.
+      - MASTER_KEK=${MASTER_KEK}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - SQL_DSN=root:${MYSQL_ROOT_PASSWORD}@tcp(mysql:3306)/agt_vault?charset=utf8mb4&parseTime=True
+      - ROOT_USERNAME=${ROOT_USERNAME:-admin}
+      - ROOT_PASSWORD=${ROOT_PASSWORD:-}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks: [agt]
+
+  mysql:
+    image: mysql:8.0
+    container_name: agt-mysql
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=agt_vault
+      - TZ=Asia/Shanghai
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [agt]
+
+volumes:
+  mysql_data:
+
+networks:
+  agt:
+    driver: bridge
