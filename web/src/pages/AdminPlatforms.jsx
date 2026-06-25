@@ -37,11 +37,24 @@ export default function AdminPlatforms() {
     setSubmitting(true);
     const groups = (v.groups || [])
       .filter((g) => g && g.name && g.name.trim())
-      .map((g) => ({ name: g.name.trim(), show_amount: !!g.show_amount }));
+      .map((g) => ({ name: g.name.trim(), type: g.type ?? 0, show_amount: !!g.show_amount }));
+    // Each group binds one channel type; a type may bind to at most one group so
+    // upload can resolve the group unambiguously from the selected type.
+    const boundTypes = groups.filter((g) => g.type).map((g) => g.type);
+    if (new Set(boundTypes).size !== boundTypes.length) {
+      Toast.error('同一渠道类型只能绑定一个分组，请检查分组配置');
+      setSubmitting(false);
+      return;
+    }
+    if (groups.some((g) => !g.type)) {
+      Toast.error('每个分组都需要绑定一个渠道类型');
+      setSubmitting(false);
+      return;
+    }
     const body = {
       name: v.name,
       base_url: v.base_url,
-      agt_token: v.agt_token || '', // empty on edit = keep existing
+      modex_token: v.modex_token || '', // empty on edit = keep existing
       status: v.status ? 1 : 2,
       name_prefix: v.name_prefix || '',
       groups,
@@ -91,7 +104,7 @@ export default function AdminPlatforms() {
         );
       },
     },
-    { title: 'AGT 令牌', dataIndex: 'agt_token_last4', render: (v) => <Text code>{v || '未设置'}</Text> },
+    { title: '系统令牌', dataIndex: 'modex_token_last4', render: (v) => <Text code>{v || '未设置'}</Text> },
     { title: '状态', dataIndex: 'status', render: (s) => <Tag color={s === 1 ? 'green' : 'grey'}>{s === 1 ? '启用' : '禁用'}</Tag> },
     {
       title: '操作',
@@ -117,7 +130,7 @@ export default function AdminPlatforms() {
         allowed_models: parseJSON(editing.allowed_models, []),
         allowed_groups: parseJSON(editing.allowed_groups, []),
       }
-    : { status: true, groups: [{ name: 'default', show_amount: false }] };
+    : { status: true, groups: [{ name: 'default', show_amount: false }] }; // admin picks each group's channel type
 
   return (
     <div>
@@ -139,16 +152,16 @@ export default function AdminPlatforms() {
         width={560}
       >
         <Form key={editing?.id || 'new'} getFormApi={(api) => (formRef.current = { formApi: api })} initValues={initValues} labelPosition="top">
-          <Form.Input field="name" label="平台名称" rules={[{ required: true }]} placeholder="如 AGT-生产" />
-          <Form.Input field="base_url" label="Base URL" rules={[{ required: true }]} placeholder="https://open.naci-tech.com" />
+          <Form.Input field="name" label="平台名称" rules={[{ required: true }]} placeholder="如 Modex Cloud-生产" />
+          <Form.Input field="base_url" label="Base URL" rules={[{ required: true }]} placeholder="例如 https://open.naci-tech.com" />
           {editing ? (
-            <Banner type="info" closeIcon={null} description="留空则保留原有 AGT 令牌；填写则替换。" style={{ marginBottom: 12 }} />
+            <Banner type="info" closeIcon={null} description="留空则保留原有系统令牌；填写则替换。" style={{ marginBottom: 12 }} />
           ) : null}
           <Form.Input
-            field="agt_token"
-            label="AGT 访问令牌"
+            field="modex_token"
+            label="系统访问令牌"
             mode="password"
-            rules={editing ? [] : [{ required: true, message: '请输入 AGT 令牌' }]}
+            rules={editing ? [] : [{ required: true, message: '请输入系统令牌' }]}
             placeholder={editing ? '留空=不修改' : 'Bearer 令牌，加密存储'}
           />
           <Form.Input
@@ -156,7 +169,7 @@ export default function AdminPlatforms() {
             label="渠道名称前缀"
             placeholder="如 modex（渠道名将自动生成为 前缀-用户名-序号）"
           />
-          <Form.Slot label="分组配置（每组可单独控制是否向供应商显示消耗金额）">
+          <Form.Slot label="分组配置（每个分组绑定一个渠道类型，并可单独控制是否向供应商显示消耗金额）">
             <ArrayField field="groups">
               {({ add, arrayFields }) => (
                 <div>
@@ -166,8 +179,18 @@ export default function AdminPlatforms() {
                         field={`${field}[name]`}
                         noLabel
                         placeholder="分组名，如 default / vip"
-                        style={{ width: 220 }}
+                        style={{ width: 160 }}
                       />
+                      <Form.Select
+                        field={`${field}[type]`}
+                        noLabel
+                        placeholder="渠道类型"
+                        style={{ width: 180 }}
+                      >
+                        {CHANNEL_TYPES.map((t) => (
+                          <Form.Select.Option key={t.value} value={t.value}>{t.label}</Form.Select.Option>
+                        ))}
+                      </Form.Select>
                       <Form.Switch field={`${field}[show_amount]`} label="显示金额" labelPosition="left" />
                       <Button type="danger" theme="borderless" icon={<IconDelete />} onClick={remove} />
                     </Space>
@@ -177,7 +200,7 @@ export default function AdminPlatforms() {
               )}
             </ArrayField>
           </Form.Slot>
-          <Form.Select field="allowed_types" label="允许的提供商类型（空=全部）" multiple style={{ width: '100%' }}>
+          <Form.Select field="allowed_types" label="允许的渠道类型（空=全部）" multiple style={{ width: '100%' }}>
             {CHANNEL_TYPES.map((t) => (<Form.Select.Option key={t.value} value={t.value}>{t.label}</Form.Select.Option>))}
           </Form.Select>
           <Form.Select field="allowed_models" label="允许的模型（空=不限；回车添加）" multiple filter allowCreate style={{ width: '100%' }} placeholder="如 gpt-4o" />

@@ -3,7 +3,7 @@ package model
 import (
 	"errors"
 
-	"github.com/modex/agt-vault/constant"
+	"github.com/modex/modex-cloud/constant"
 	"gorm.io/gorm"
 )
 

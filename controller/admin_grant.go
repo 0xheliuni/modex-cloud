@@ -3,8 +3,9 @@ package controller
 import (
 	"net/http"
 
-	"github.com/modex/agt-vault/common"
-	"github.com/modex/agt-vault/model"
+	"github.com/modex/modex-cloud/common"
+	"github.com/modex/modex-cloud/constant"
+	"github.com/modex/modex-cloud/model"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,6 +19,10 @@ type grantRequest struct {
 	AllowedModels []string `json:"allowed_models"` // optional
 	AllowedGroups []string `json:"allowed_groups"` // optional
 	MaxChannels   int      `json:"max_channels"`   // 0 = unlimited
+	// AllowUpload is the admin switch for whether the supplier may upload to this
+	// platform. When false the grant is disabled: the supplier neither sees the
+	// platform nor can upload. Pointer so an omitted field defaults to enabled.
+	AllowUpload *bool `json:"allow_upload"`
 }
 
 // ListGrants returns all authorizations (admin view).
@@ -57,6 +62,12 @@ func UpsertGrant(c *gin.Context) {
 		return
 	}
 
+	// Allow-upload switch: default enabled when the field is omitted.
+	status := constant.StatusEnabled
+	if req.AllowUpload != nil && !*req.AllowUpload {
+		status = constant.StatusDisabled
+	}
+
 	g := &model.Grant{
 		UserId:        req.UserId,
 		PlatformId:    req.PlatformId,
@@ -64,6 +75,7 @@ func UpsertGrant(c *gin.Context) {
 		AllowedModels: common.EncodeJSON(req.AllowedModels),
 		AllowedGroups: common.EncodeJSON(req.AllowedGroups),
 		MaxChannels:   req.MaxChannels,
+		Status:        status,
 	}
 	if err := model.UpsertGrant(g); err != nil {
 		common.ApiError(c, http.StatusInternalServerError, "failed to save grant")

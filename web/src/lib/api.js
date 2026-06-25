@@ -1,5 +1,5 @@
-// Thin fetch wrapper over the AGT-envelope API ({success, message, data}).
-// Session cookie auth — credentials:'include' sends the agt_session cookie.
+// Thin fetch wrapper over the Modex Cloud-envelope API ({success, message, data}).
+// Session cookie auth — credentials:'include' sends the modex_session cookie.
 
 async function request(method, path, body) {
   const opts = {

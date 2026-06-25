@@ -1,5 +1,5 @@
 // Channel-type catalog for the six supported providers. Numbers match the
-// backend constant/channel.go and AGT/new-api wire format.
+// backend constant/channel.go and Modex Cloud/new-api wire format.
 export const CHANNEL_TYPES = [
   { value: 1, label: 'OpenAI', hint: 'sk-...' },
   { value: 3, label: 'Azure OpenAI', hint: 'api-key' },
@@ -25,7 +25,7 @@ export const SYNC_STATUS = {
   2: { text: '失败', color: 'red' },
 };
 
-// AGT / new-api quota unit: 500000 = $1. Formats consumed quota as a USD string.
+// Modex Cloud / new-api quota unit: 500000 = $1. Formats consumed quota as a USD string.
 export const QUOTA_PER_UNIT = 500000;
 export function formatQuota(usedQuota) {
   const n = Number(usedQuota) || 0;

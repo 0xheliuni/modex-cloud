@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/modex/agt-vault/constant"
-	"github.com/modex/agt-vault/model"
+	"github.com/modex/modex-cloud/constant"
+	"github.com/modex/modex-cloud/model"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -26,7 +26,7 @@ func newRouter(t *testing.T) *gin.Engine {
 
 	r := gin.New()
 	store := cookie.NewStore([]byte("test-session-secret-32-bytes-xxxx"))
-	r.Use(sessions.Sessions("agt_session", store))
+	r.Use(sessions.Sessions("modex_session", store))
 
 	r.GET("/supplier", SupplierAuth(), func(c *gin.Context) { c.String(http.StatusOK, "supplier-ok") })
 	r.GET("/admin", AdminAuth(), func(c *gin.Context) { c.String(http.StatusOK, "admin-ok") })

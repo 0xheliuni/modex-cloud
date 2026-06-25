@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/modex/agt-vault/common"
-	"github.com/modex/agt-vault/model"
+	"github.com/modex/modex-cloud/common"
+	"github.com/modex/modex-cloud/model"
 
 	"github.com/gin-gonic/gin"
 )

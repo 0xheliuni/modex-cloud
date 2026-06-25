@@ -71,7 +71,7 @@ func New(masterKey []byte) (*Vault, error) {
 		return nil, fmt.Errorf("crypto: gcm init: %w", err)
 	}
 	// Domain-separated derivation: HMAC key != encryption key.
-	h := sha256.Sum256(append([]byte("agt-vault/fingerprint/v1\x00"), masterKey...))
+	h := sha256.Sum256(append([]byte("modex-cloud/fingerprint/v1\x00"), masterKey...))
 	hmacKey := make([]byte, len(h))
 	copy(hmacKey, h[:])
 

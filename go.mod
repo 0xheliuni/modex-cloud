@@ -1,4 +1,4 @@
-module github.com/modex/agt-vault
+module github.com/modex/modex-cloud
 
 go 1.25
 

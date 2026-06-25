@@ -8,10 +8,10 @@ package controller
 import (
 	"net/http"
 
-	"github.com/modex/agt-vault/common"
-	"github.com/modex/agt-vault/constant"
-	"github.com/modex/agt-vault/middleware"
-	"github.com/modex/agt-vault/model"
+	"github.com/modex/modex-cloud/common"
+	"github.com/modex/modex-cloud/constant"
+	"github.com/modex/modex-cloud/middleware"
+	"github.com/modex/modex-cloud/model"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"

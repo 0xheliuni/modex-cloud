@@ -1,4 +1,4 @@
-# AGT Key Vault
+# Modex Cloud
 
 A secure, multi-supplier custody platform for AI provider API keys. Suppliers
 upload official keys/tokens for **Anthropic Claude, AWS Claude (Bedrock), OpenAI,

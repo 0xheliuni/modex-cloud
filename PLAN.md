@@ -1,4 +1,4 @@
-# AGT Key Vault — Implementation Plan
+# Modex Cloud — Implementation Plan
 
 Secure multi-supplier API-key custody → AGT platform sync.
 Reference codebase: `../new-api` (Go/Gin/GORM). Design decisions: see project memory.
@@ -25,7 +25,7 @@ Reference codebase: `../new-api` (Go/Gin/GORM). Design decisions: see project me
 ## Package layout (flat, mirrors new-api for easy code reuse)
 
 ```
-agt-vault/
+modex-cloud/
   crypto/        AES-256-GCM vault + HMAC fingerprint   [Phase 0 — DONE first]
   common/        bcrypt, random tokens, json, env, page  (lift from new-api)
   constant/      channel types, roles, key states
@@ -70,7 +70,7 @@ agt-vault/
 - `controller/admin_platform.go`: Platform CRUD; AGT token sealed on write, only Last4 returned.
 - `controller/admin_user.go`: User CRUD (create supplier accounts, reset password, enable/disable).
 - `controller/admin_grant.go`: Grant upsert/list/delete + supplier-role validation.
-- Model DAO added: Platform Update/SetAGTToken/Delete, User List/UpdateProfile/SetAccessToken/Delete,
+- Model DAO added: Platform Update/SetModexToken/Delete, User List/UpdateProfile/SetAccessToken/Delete,
   Grant ListAll/Upsert/Delete.
 - Tests: platform token sealed-never-plain + JSON-leak guard; delete-in-use refused; sealer write-only.
 

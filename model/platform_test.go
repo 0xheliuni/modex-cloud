@@ -3,11 +3,11 @@ package model
 import (
 	"testing"
 
-	"github.com/modex/agt-vault/constant"
-	"github.com/modex/agt-vault/crypto"
+	"github.com/modex/modex-cloud/constant"
+	"github.com/modex/modex-cloud/crypto"
 )
 
-// TestPlatform_TokenSealedNeverPlain proves a platform's AGT token is stored
+// TestPlatform_TokenSealedNeverPlain proves a platform's token is stored
 // sealed and that the JSON view never exposes the ciphertext or plaintext.
 func TestPlatform_TokenSealedNeverPlain(t *testing.T) {
 	setupTestDB(t)
@@ -21,7 +21,7 @@ func TestPlatform_TokenSealedNeverPlain(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 	sealed, _ := crypto.GlobalSealer().SealString(token)
-	if err := p.SetAGTToken(string(sealed), crypto.Last4(token)); err != nil {
+	if err := p.SetModexToken(string(sealed), crypto.Last4(token)); err != nil {
 		t.Fatalf("set token: %v", err)
 	}
 
@@ -30,24 +30,24 @@ func TestPlatform_TokenSealedNeverPlain(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reload: %v", err)
 	}
-	if reloaded.AGTTokenEnc == token {
-		t.Fatal("SECURITY FAILURE: AGT token stored in plaintext")
+	if reloaded.ModexTokenEnc == token {
+		t.Fatal("SECURITY FAILURE: platform token stored in plaintext")
 	}
-	if reloaded.AGTTokenEnc == "" {
-		t.Fatal("AGT token blob missing")
+	if reloaded.ModexTokenEnc == "" {
+		t.Fatal("platform token blob missing")
 	}
-	if reloaded.AGTTokenLast4 != crypto.Last4(token) {
-		t.Errorf("last4 = %q, want %q", reloaded.AGTTokenLast4, crypto.Last4(token))
+	if reloaded.ModexTokenLast4 != crypto.Last4(token) {
+		t.Errorf("last4 = %q, want %q", reloaded.ModexTokenLast4, crypto.Last4(token))
 	}
 
 	// JSON marshal must omit the sealed token entirely (json:"-").
 	js, _ := marshalJSON(reloaded)
-	if containsAny(js, token, reloaded.AGTTokenEnc) {
+	if containsAny(js, token, reloaded.ModexTokenEnc) {
 		t.Errorf("SECURITY FAILURE: serialized platform leaked token material: %s", js)
 	}
 
-	// The sync opener can still recover it for forwarding to AGT.
-	got, err := crypto.SyncOpener().Open([]byte(reloaded.AGTTokenEnc))
+	// The sync opener can still recover it for forwarding to Modex Cloud.
+	got, err := crypto.SyncOpener().Open([]byte(reloaded.ModexTokenEnc))
 	if err != nil || string(got) != token {
 		t.Fatalf("opener round-trip failed: %v / %q", err, got)
 	}
@@ -70,8 +70,8 @@ func TestPlatform_DeleteRefusedWhenInUse(t *testing.T) {
 func TestPlatform_GroupsRoundTrip(t *testing.T) {
 	setupTestDB(t)
 	groups := []PlatformGroup{
-		{Name: "vip", ShowAmount: true},
-		{Name: "default", ShowAmount: false},
+		{Name: "vip", Type: constant.ChannelTypeOpenAI, ShowAmount: true},
+		{Name: "default", Type: constant.ChannelTypeAnthropic, ShowAmount: false},
 	}
 	p := &Platform{
 		Name: "p", BaseURL: "http://x", Status: constant.StatusEnabled,
@@ -96,6 +96,17 @@ func TestPlatform_GroupsRoundTrip(t *testing.T) {
 	}
 	if reloaded.ShowAmountForGroup("unknown") {
 		t.Error("unknown group must default to hidden")
+	}
+
+	// GroupForType resolves the group bound to a channel type.
+	if g, ok := reloaded.GroupForType(constant.ChannelTypeOpenAI); !ok || g.Name != "vip" {
+		t.Errorf("GroupForType(OpenAI) = %q,%v; want vip,true", g.Name, ok)
+	}
+	if g, ok := reloaded.GroupForType(constant.ChannelTypeAnthropic); !ok || g.Name != "default" {
+		t.Errorf("GroupForType(Anthropic) = %q,%v; want default,true", g.Name, ok)
+	}
+	if _, ok := reloaded.GroupForType(constant.ChannelTypeGemini); ok {
+		t.Error("GroupForType(Gemini) should not match any group")
 	}
 }
 

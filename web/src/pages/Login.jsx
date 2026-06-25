@@ -29,12 +29,12 @@ export default function Login() {
       <Card style={{ width: 400 }} bodyStyle={{ padding: 32 }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <IconKey style={{ fontSize: 40, color: 'var(--semi-color-primary)' }} />
-          <Title heading={3} style={{ marginTop: 12 }}>AGT 密钥托管平台</Title>
+          <Title heading={3} style={{ marginTop: 12 }}>Modex Cloud 密钥托管平台</Title>
           <Text type="tertiary">供应商密钥安全上传 · 一次写入永不回读</Text>
         </div>
         <Banner
           type="info"
-          description="密钥上传后将被加密并同步到 AGT，同步成功后本地副本立即销毁，任何人无法再次查看明文。"
+          description="密钥上传后将被加密并同步到 Modex Cloud，同步成功后本地副本立即销毁，任何人无法再次查看明文。"
           style={{ marginBottom: 20 }}
           closeIcon={null}
         />

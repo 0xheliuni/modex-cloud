@@ -8,9 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/modex/agt-vault/constant"
-	"github.com/modex/agt-vault/crypto"
-	"github.com/modex/agt-vault/model"
+	"github.com/modex/modex-cloud/constant"
+	"github.com/modex/modex-cloud/crypto"
+	"github.com/modex/modex-cloud/model"
 )
 
 // TestSyncChannel_EndToEnd_DestroysKey is the platform's headline guarantee in
@@ -53,7 +53,7 @@ func TestSyncChannel_EndToEnd_DestroysKey(t *testing.T) {
 	platform := &model.Platform{Name: "AGT", BaseURL: srv.URL, Status: constant.StatusEnabled}
 	_ = platform.Create()
 	sealedTok, _ := crypto.GlobalSealer().SealString(agtToken)
-	_ = platform.SetAGTToken(string(sealedTok), crypto.Last4(agtToken))
+	_ = platform.SetModexToken(string(sealedTok), crypto.Last4(agtToken))
 
 	// Channel with a sealed supplier key, pending sync.
 	sealedKey, _ := crypto.GlobalSealer().SealString(supplierKey)
@@ -128,7 +128,7 @@ func TestSyncChannel_FailureRetainsKey(t *testing.T) {
 	platform := &model.Platform{Name: "AGT", BaseURL: srv.URL, Status: constant.StatusEnabled}
 	_ = platform.Create()
 	sealedTok, _ := crypto.GlobalSealer().SealString("tok")
-	_ = platform.SetAGTToken(string(sealedTok), "••••")
+	_ = platform.SetModexToken(string(sealedTok), "••••")
 
 	sealedKey, _ := crypto.GlobalSealer().SealString("sk-bad")
 	ch := &model.Channel{
@@ -174,7 +174,7 @@ func TestRefreshUsage_PullsQuotaFromAGT(t *testing.T) {
 	platform := &model.Platform{Name: "AGT", BaseURL: srv.URL, Status: constant.StatusEnabled}
 	_ = platform.Create()
 	sealedTok, _ := crypto.GlobalSealer().SealString(agtToken)
-	_ = platform.SetAGTToken(string(sealedTok), crypto.Last4(agtToken))
+	_ = platform.SetModexToken(string(sealedTok), crypto.Last4(agtToken))
 
 	// A synced-and-wiped channel: no local key, but it has a RemoteId.
 	ch := &model.Channel{

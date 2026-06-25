@@ -3,7 +3,7 @@ package model
 import (
 	"errors"
 
-	"github.com/modex/agt-vault/constant"
+	"github.com/modex/modex-cloud/constant"
 	"gorm.io/gorm"
 )
 
@@ -80,10 +80,17 @@ func ListAllGrants(offset, limit int) ([]Grant, int64, error) {
 
 // UpsertGrant creates or updates the (user, platform) grant in place, so an
 // admin re-granting an existing pair adjusts the whitelist instead of erroring
-// on the unique index.
+// on the unique index. The grant's Status (the "allow upload" switch) is honored
+// on both create and update.
 func UpsertGrant(g *Grant) error {
-	existing, err := GetGrant(g.UserId, g.PlatformId)
-	if errors.Is(err, ErrGrantNotFound) {
+	if g.Status == 0 {
+		g.Status = constant.StatusEnabled
+	}
+	// Look up any existing grant for this pair regardless of status, so a disabled
+	// grant can be re-enabled (GetGrant only returns enabled ones).
+	var existing Grant
+	err := DB.First(&existing, "user_id = ? AND platform_id = ?", g.UserId, g.PlatformId).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return g.Create()
 	}
 	if err != nil {
@@ -95,7 +102,7 @@ func UpsertGrant(g *Grant) error {
 		"allowed_models": g.AllowedModels,
 		"allowed_groups": g.AllowedGroups,
 		"max_channels":   g.MaxChannels,
-		"status":         constant.StatusEnabled,
+		"status":         g.Status,
 	}).Error
 }
 

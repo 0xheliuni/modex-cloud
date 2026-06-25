@@ -1,4 +1,4 @@
-# gitleaks configuration for agt-vault.
+# gitleaks configuration for modex-cloud.
 # Run: gitleaks detect --config .gitleaks.toml --source .
 #
 # This extends the default ruleset and adds project-specific allowlists so the

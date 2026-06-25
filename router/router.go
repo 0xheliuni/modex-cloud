@@ -4,8 +4,8 @@ package router
 import (
 	"time"
 
-	"github.com/modex/agt-vault/controller"
-	"github.com/modex/agt-vault/middleware"
+	"github.com/modex/modex-cloud/controller"
+	"github.com/modex/modex-cloud/middleware"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -33,7 +33,7 @@ func Setup(sessionSecret string) *gin.Engine {
 		MaxAge:   86400,
 		SameSite: 3, // http.SameSiteStrictMode
 	})
-	r.Use(sessions.Sessions("agt_session", store))
+	r.Use(sessions.Sessions("modex_session", store))
 
 	api := r.Group("/api")
 

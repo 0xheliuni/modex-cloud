@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/modex/agt-vault/common"
-	"github.com/modex/agt-vault/constant"
-	"github.com/modex/agt-vault/crypto"
-	"github.com/modex/agt-vault/middleware"
-	"github.com/modex/agt-vault/model"
-	"github.com/modex/agt-vault/service/sync"
-	"github.com/modex/agt-vault/service/validate"
+	"github.com/modex/modex-cloud/common"
+	"github.com/modex/modex-cloud/constant"
+	"github.com/modex/modex-cloud/crypto"
+	"github.com/modex/modex-cloud/middleware"
+	"github.com/modex/modex-cloud/model"
+	"github.com/modex/modex-cloud/service/sync"
+	"github.com/modex/modex-cloud/service/validate"
 
 	"github.com/gin-gonic/gin"
 )
@@ -95,9 +95,15 @@ func CreateChannel(c *gin.Context) {
 		return
 	}
 
-	// Group is admin-configured per platform; the supplier no longer chooses it.
-	// base_url is no longer used (left empty so AGT applies its provider default).
-	group := platform.PrimaryGroupName()
+	// Group is admin-configured per platform and bound to the channel type the
+	// supplier picked. base_url is no longer used (left empty so AGT applies its
+	// provider default).
+	boundGroup, ok := platform.GroupForType(req.Type)
+	if !ok {
+		common.ApiError(c, http.StatusBadRequest, "该渠道类型未配置对应分组，请联系管理员")
+		return
+	}
+	group := boundGroup.Name
 
 	// Whitelist validation (type/models/group). base_url omitted by design.
 	res, err := validate.ChannelUpload(validate.ChannelInput{
@@ -136,8 +142,8 @@ func CreateChannel(c *gin.Context) {
 		return
 	}
 
-	// System-generated channel name: "{prefix}-{username}-{seq}".
-	name, err := generateChannelName(userId, req.PlatformId, middleware.CurrentUsername(c), platform.NamePrefix)
+	// System-generated channel name: "{prefix}-{username}-{group}-{seq}".
+	name, err := generateChannelName(userId, req.PlatformId, middleware.CurrentUsername(c), platform.NamePrefix, res.Group)
 	if err != nil {
 		common.ApiError(c, http.StatusInternalServerError, "failed to generate channel name")
 		return
@@ -205,15 +211,16 @@ func UpdateChannel(c *gin.Context) {
 		return
 	}
 
-	// Re-validate the resulting metadata. Group stays admin-controlled; keep the
-	// channel's current group (or the platform's, in case config changed).
+	// Re-validate the resulting metadata. Group stays admin-controlled and is
+	// re-resolved from the channel's type (which is not editable), so it always
+	// reflects the platform's current type→group binding.
 	models := ch.Models
 	if req.Models != "" {
 		models = req.Models
 	}
 	group := ch.Group
-	if group == "" {
-		group = platform.PrimaryGroupName()
+	if boundGroup, ok := platform.GroupForType(ch.Type); ok {
+		group = boundGroup.Name
 	}
 	res, err := validate.ChannelUpload(validate.ChannelInput{
 		PlatformId: ch.PlatformId, Type: ch.Type,
@@ -319,20 +326,26 @@ func RefreshUsage(c *gin.Context) {
 // --- helpers ---
 
 // generateChannelName builds a system-generated channel name of the form
-// "{prefix}-{username}-{seq}". The prefix is admin-configured per platform; when
-// empty the name is just "{username}-{seq}". It probes for collisions so a
-// sequence reused after deletes still yields a unique name.
-func generateChannelName(userId, platformId int, username, prefix string) (string, error) {
+// "{prefix}-{username}-{group}-{seq}". The prefix is admin-configured per
+// platform; when empty the name omits it. The group is the channel type's bound
+// group; when empty it is omitted too. It probes for collisions so a sequence
+// reused after deletes still yields a unique name.
+func generateChannelName(userId, platformId int, username, prefix, group string) (string, error) {
 	seq, err := model.NextChannelSeq(userId, platformId)
 	if err != nil {
 		return "", err
 	}
 	build := func(n int) string {
-		base := username + "-" + strconv.Itoa(n)
-		if strings.TrimSpace(prefix) != "" {
-			return prefix + "-" + base
+		parts := make([]string, 0, 4)
+		if p := strings.TrimSpace(prefix); p != "" {
+			parts = append(parts, p)
 		}
-		return base
+		parts = append(parts, username)
+		if g := strings.TrimSpace(group); g != "" {
+			parts = append(parts, g)
+		}
+		parts = append(parts, strconv.Itoa(n))
+		return strings.Join(parts, "-")
 	}
 	// Probe forward until the name is free (bounded to avoid an infinite loop).
 	for i := 0; i < 1000; i++ {

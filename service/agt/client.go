@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/modex/agt-vault/common"
+	"github.com/modex/modex-cloud/common"
 )
 
 // Client talks to one AGT platform.

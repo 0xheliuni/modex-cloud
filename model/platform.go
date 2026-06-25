@@ -3,21 +3,22 @@ package model
 import (
 	"errors"
 
-	"github.com/modex/agt-vault/common"
+	"github.com/modex/modex-cloud/common"
 	"gorm.io/gorm"
 )
 
-// Platform is a downstream AGT target that an admin configures. Its AGT access
-// token is the platform's only long-lived secret, stored sealed (AES-256-GCM)
-// in AGTTokenEnc and never returned over the API — only AGTTokenLast4 is shown.
+// Platform is a downstream Modex Cloud target that an admin configures. Its
+// access token is the platform's only long-lived secret, stored sealed
+// (AES-256-GCM) in ModexTokenEnc and never returned over the API — only
+// ModexTokenLast4 is shown.
 type Platform struct {
 	Id      int    `json:"id" gorm:"primaryKey"`
 	Name    string `json:"name" gorm:"type:varchar(100);not null"`
 	BaseURL string `json:"base_url" gorm:"type:varchar(255);not null"` // e.g. https://open.naci-tech.com
 	Status  int    `json:"status" gorm:"default:1"`
 
-	AGTTokenEnc   string `json:"-" gorm:"type:text"` // sealed AGT bearer token; never serialized
-	AGTTokenLast4 string `json:"agt_token_last4" gorm:"type:varchar(8)"`
+	ModexTokenEnc   string `json:"-" gorm:"column:modex_token_enc;type:text"` // sealed bearer token; never serialized
+	ModexTokenLast4 string `json:"modex_token_last4" gorm:"column:modex_token_last4;type:varchar(8)"`
 
 	// NamePrefix is the admin-configured prefix used to auto-generate channel
 	// names as "{NamePrefix}-{username}-{seq}". Suppliers cannot set names.
@@ -39,12 +40,14 @@ type Platform struct {
 	UpdatedTime int64 `json:"updated_time"`
 }
 
-// PlatformGroup is one downstream group a platform assigns to every channel
-// uploaded to it, together with whether the channel's consumed amount is shown
-// to the supplier. Suppliers never choose groups; the admin configures them per
-// platform.
+// PlatformGroup is one downstream group a platform assigns to channels of a
+// specific channel type, together with whether the channel's consumed amount is
+// shown to the supplier. Suppliers never choose groups; the admin configures
+// them per platform and binds each group to a channel type. On upload the
+// supplier only picks a type and the backend resolves the matching group.
 type PlatformGroup struct {
 	Name       string `json:"name"`
+	Type       int    `json:"type"` // bound channel type (constant.ChannelType*)
 	ShowAmount bool   `json:"show_amount"`
 }
 
@@ -78,10 +81,10 @@ func ListPlatforms() ([]Platform, error) {
 }
 
 // Update writes mutable platform fields (everything except the sealed token,
-// which is set separately via SetAGTToken so it is never accidentally cleared).
+// which is set separately via SetModexToken so it is never accidentally cleared).
 func (p *Platform) Update() error {
 	p.UpdatedTime = nowUnix()
-	return DB.Model(p).Omit("agt_token_enc", "agt_token_last4", "created_time").
+	return DB.Model(p).Omit("modex_token_enc", "modex_token_last4", "created_time").
 		Updates(map[string]any{
 			"name":           p.Name,
 			"base_url":       p.BaseURL,
@@ -96,14 +99,14 @@ func (p *Platform) Update() error {
 		}).Error
 }
 
-// SetAGTToken stores the sealed AGT bearer token and its display suffix in one
+// SetModexToken stores the sealed bearer token and its display suffix in one
 // update. The caller seals via crypto.GlobalSealer(); plaintext never reaches
 // the model layer beyond computing last4.
-func (p *Platform) SetAGTToken(sealedBlob, last4 string) error {
+func (p *Platform) SetModexToken(sealedBlob, last4 string) error {
 	return DB.Model(p).Updates(map[string]any{
-		"agt_token_enc":   sealedBlob,
-		"agt_token_last4": last4,
-		"updated_time":    nowUnix(),
+		"modex_token_enc":   sealedBlob,
+		"modex_token_last4": last4,
+		"updated_time":      nowUnix(),
 	}).Error
 }
 
@@ -129,6 +132,18 @@ func (p *Platform) PrimaryGroupName() string {
 		return ""
 	}
 	return gs[0].Name
+}
+
+// GroupForType returns the group bound to the given channel type. The supplier
+// only picks a type on upload; the backend resolves the matching group here.
+// Returns false when no configured group is bound to that type.
+func (p *Platform) GroupForType(t int) (PlatformGroup, bool) {
+	for _, g := range p.ParsedGroups() {
+		if g.Type == t {
+			return g, true
+		}
+	}
+	return PlatformGroup{}, false
 }
 
 // ShowAmountForGroup reports whether the consumed amount should be shown for a

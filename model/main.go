@@ -53,7 +53,7 @@ func Init() error {
 	switch {
 	case dsn == "":
 		UsingSQLite = true
-		dialector = sqlite.Open("agt-vault.db")
+		dialector = sqlite.Open("modex-cloud.db")
 	case strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://"):
 		UsingPostgreSQL = true
 		dialector = postgres.Open(dsn)

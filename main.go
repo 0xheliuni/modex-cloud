@@ -1,4 +1,4 @@
-// Command agt-vault is the secure multi-supplier API-key custody platform.
+// Command modex-cloud is the secure multi-supplier API-key custody platform.
 //
 // It boots in this order, failing fast on any misconfiguration:
 //  1. Load + validate config (MASTER_KEK, SESSION_SECRET required).
@@ -12,10 +12,10 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/modex/agt-vault/config"
-	"github.com/modex/agt-vault/crypto"
-	"github.com/modex/agt-vault/model"
-	"github.com/modex/agt-vault/router"
+	"github.com/modex/modex-cloud/config"
+	"github.com/modex/modex-cloud/crypto"
+	"github.com/modex/modex-cloud/model"
+	"github.com/modex/modex-cloud/router"
 
 	"github.com/gin-gonic/gin"
 )
@@ -62,7 +62,7 @@ func main() {
 	}
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
-	log.Printf("agt-vault listening on %s", addr)
+	log.Printf("modex-cloud listening on %s", addr)
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("server stopped: %v", err)
 	}

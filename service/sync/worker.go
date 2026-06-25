@@ -13,9 +13,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/modex/agt-vault/crypto"
-	"github.com/modex/agt-vault/model"
-	"github.com/modex/agt-vault/service/agt"
+	"github.com/modex/modex-cloud/crypto"
+	"github.com/modex/modex-cloud/model"
+	"github.com/modex/modex-cloud/service/agt"
 )
 
 // SyncChannel pushes one channel to its AGT platform.
@@ -35,8 +35,8 @@ func SyncChannel(ctx context.Context, channelId int) error {
 		return err
 	}
 
-	// Decrypt the platform's AGT token (long-lived secret) for this call only.
-	tokenBytes, err := crypto.SyncOpener().Open([]byte(platform.AGTTokenEnc))
+	// Decrypt the platform's Modex Cloud token (long-lived secret) for this call only.
+	tokenBytes, err := crypto.SyncOpener().Open([]byte(platform.ModexTokenEnc))
 	if err != nil {
 		_ = ch.MarkFailed("platform token could not be decrypted")
 		return fmt.Errorf("decrypt platform token: %w", err)
@@ -123,7 +123,7 @@ func RefreshUsage(ctx context.Context, channelId int) (int64, error) {
 		return 0, err
 	}
 
-	tokenBytes, err := crypto.SyncOpener().Open([]byte(platform.AGTTokenEnc))
+	tokenBytes, err := crypto.SyncOpener().Open([]byte(platform.ModexTokenEnc))
 	if err != nil {
 		return 0, fmt.Errorf("decrypt platform token: %w", err)
 	}

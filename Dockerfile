@@ -18,13 +18,13 @@ COPY . .
 # Bring in the freshly built SPA so go:embed picks it up.
 COPY --from=web /web/dist ./web/dist
 # CGO disabled: glebarez/sqlite is pure-Go, so the binary is fully static.
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /agt-vault .
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /modex-cloud .
 
 # ---- Runtime stage ----
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata && adduser -D -u 10001 appuser
 WORKDIR /app
-COPY --from=build /agt-vault /app/agt-vault
+COPY --from=build /modex-cloud /app/modex-cloud
 USER appuser
 EXPOSE 3000
-ENTRYPOINT ["/app/agt-vault"]
+ENTRYPOINT ["/app/modex-cloud"]

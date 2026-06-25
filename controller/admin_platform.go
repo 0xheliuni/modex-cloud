@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/modex/agt-vault/common"
-	"github.com/modex/agt-vault/constant"
-	"github.com/modex/agt-vault/crypto"
-	"github.com/modex/agt-vault/middleware"
-	"github.com/modex/agt-vault/model"
+	"github.com/modex/modex-cloud/common"
+	"github.com/modex/modex-cloud/constant"
+	"github.com/modex/modex-cloud/crypto"
+	"github.com/modex/modex-cloud/middleware"
+	"github.com/modex/modex-cloud/model"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,7 +18,7 @@ import (
 type platformRequest struct {
 	Name          string                `json:"name"`
 	BaseURL       string                `json:"base_url"`
-	AGTToken      string                `json:"agt_token"` // write-only; sealed, never returned
+	ModexToken    string                `json:"modex_token"` // write-only; sealed, never returned
 	Status        int                   `json:"status"`
 	NamePrefix    string                `json:"name_prefix"` // prefix for auto-generated channel names
 	Groups        []model.PlatformGroup `json:"groups"`      // downstream groups + show-amount toggles
@@ -28,7 +28,7 @@ type platformRequest struct {
 	BaseURLAllow  []string              `json:"base_url_allow"`
 }
 
-// ListPlatforms returns all target platforms. Sealed AGT tokens never serialize.
+// ListPlatforms returns all target platforms. Sealed tokens never serialize.
 func ListPlatforms(c *gin.Context) {
 	ps, err := model.ListPlatforms()
 	if err != nil {
@@ -38,7 +38,7 @@ func ListPlatforms(c *gin.Context) {
 	common.ApiSuccess(c, ps)
 }
 
-// CreatePlatform registers a new target AGT platform and seals its access token.
+// CreatePlatform registers a new downstream Modex Cloud platform and seals its access token.
 func CreatePlatform(c *gin.Context) {
 	var req platformRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -49,8 +49,8 @@ func CreatePlatform(c *gin.Context) {
 		common.ApiError(c, http.StatusBadRequest, "name and base_url are required")
 		return
 	}
-	if req.AGTToken == "" {
-		common.ApiError(c, http.StatusBadRequest, "agt_token is required")
+	if req.ModexToken == "" {
+		common.ApiError(c, http.StatusBadRequest, "modex_token is required")
 		return
 	}
 
@@ -71,7 +71,7 @@ func CreatePlatform(c *gin.Context) {
 	}
 
 	// Seal the AGT token (write-only crypto — controllers cannot Open).
-	if err := sealPlatformToken(p, req.AGTToken); err != nil {
+	if err := sealPlatformToken(p, req.ModexToken); err != nil {
 		common.ApiError(c, http.StatusInternalServerError, "failed to secure platform token")
 		return
 	}
@@ -119,8 +119,8 @@ func UpdatePlatform(c *gin.Context) {
 	}
 
 	// Only rotate the token when a new one is supplied (omit = keep existing).
-	if req.AGTToken != "" {
-		if err := sealPlatformToken(p, req.AGTToken); err != nil {
+	if req.ModexToken != "" {
+		if err := sealPlatformToken(p, req.ModexToken); err != nil {
 			common.ApiError(c, http.StatusInternalServerError, "failed to secure platform token")
 			return
 		}
@@ -149,15 +149,15 @@ func DeletePlatform(c *gin.Context) {
 	common.ApiSuccess(c, nil)
 }
 
-// sealPlatformToken seals the AGT token via the write-only global sealer and
-// stores the blob + display suffix. Plaintext is not logged or retained.
+// sealPlatformToken seals the platform token via the write-only global sealer
+// and stores the blob + display suffix. Plaintext is not logged or retained.
 func sealPlatformToken(p *model.Platform, token string) error {
 	sealer := crypto.GlobalSealer()
 	blob, err := sealer.SealString(token)
 	if err != nil {
 		return err
 	}
-	return p.SetAGTToken(string(blob), crypto.Last4(token))
+	return p.SetModexToken(string(blob), crypto.Last4(token))
 }
 
 // --- small shared helpers for admin controllers ---

@@ -36,7 +36,7 @@ function Shell() {
           selectedKeys={[loc.pathname]}
           onSelect={({ itemKey }) => nav(itemKey)}
           items={items}
-          header={{ logo: <IconKey style={{ fontSize: 28, color: '#fff' }} />, text: 'AGT 密钥托管' }}
+          header={{ logo: <IconKey style={{ fontSize: 28, color: '#fff' }} />, text: 'Modex Cloud' }}
           footer={{ collapseButton: true }}
         />
       </Sider>

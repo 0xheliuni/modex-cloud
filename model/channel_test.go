@@ -3,8 +3,8 @@ package model
 import (
 	"testing"
 
-	"github.com/modex/agt-vault/constant"
-	"github.com/modex/agt-vault/crypto"
+	"github.com/modex/modex-cloud/constant"
+	"github.com/modex/modex-cloud/crypto"
 )
 
 // setupTestDB opens an in-memory SQLite database and migrates the schema.

@@ -3,7 +3,7 @@ package model
 import (
 	"testing"
 
-	"github.com/modex/agt-vault/constant"
+	"github.com/modex/modex-cloud/constant"
 )
 
 // TestNextChannelSeq_CountsAcrossDeletes proves the generated sequence number

@@ -4,8 +4,8 @@
 !.env.example
 
 # Build artifacts
-agt-vault
-agt-vault.exe
+modex-cloud
+modex-cloud.exe
 *.exe
 dist/
 web/node_modules/

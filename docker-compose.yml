@@ -1,8 +1,8 @@
 services:
   app:
     build: .
-    image: agt-vault:latest
-    container_name: agt-vault
+    image: modex-cloud:latest
+    container_name: modex-cloud
     restart: always
     ports:
       - "3000:3000"
@@ -12,7 +12,7 @@ services:
       # Secrets come from the .env file (see .env.example). Never hard-code here.
       - MASTER_KEK=${MASTER_KEK}
       - SESSION_SECRET=${SESSION_SECRET}
-      - SQL_DSN=root:${MYSQL_ROOT_PASSWORD}@tcp(mysql:3306)/agt_vault?charset=utf8mb4&parseTime=True
+      - SQL_DSN=root:${MYSQL_ROOT_PASSWORD}@tcp(mysql:3306)/modex_cloud?charset=utf8mb4&parseTime=True
       - ROOT_USERNAME=${ROOT_USERNAME:-admin}
       - ROOT_PASSWORD=${ROOT_PASSWORD:-}
     depends_on:
@@ -26,7 +26,7 @@ services:
     restart: always
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - MYSQL_DATABASE=agt_vault
+      - MYSQL_DATABASE=modex_cloud
       - TZ=Asia/Shanghai
     volumes:
       - mysql_data:/var/lib/mysql

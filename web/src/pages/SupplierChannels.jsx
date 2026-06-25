@@ -61,7 +61,7 @@ export default function SupplierChannels() {
         key: values.key,
         models: Array.isArray(values.models) ? values.models.join(',') : values.models || '',
       });
-      Toast.success('密钥已上传并加密，正在同步到 AGT');
+      Toast.success('密钥已上传并加密，正在同步到 Modex Cloud');
       setModalOpen(false);
       formRef.current.formApi.reset();
       loadChannels(activePlatform);
@@ -164,7 +164,7 @@ export default function SupplierChannels() {
         r.show_amount ? (
           <Space>
             <Text strong>{formatQuota(v)}</Text>
-            <Tooltip content="从 AGT 刷新最新消耗">
+            <Tooltip content="从 Modex Cloud 刷新最新消耗">
               <Button
                 size="small"
                 theme="borderless"
@@ -210,7 +210,7 @@ export default function SupplierChannels() {
       <Banner
         type="warning"
         closeIcon={null}
-        description="密钥一旦上传即被加密；同步到 AGT 成功后本地明文与密文将被销毁，无法再次查看。如需更换请重新上传。"
+        description="密钥一旦上传即被加密；同步到 Modex Cloud 成功后本地明文与密文将被销毁，无法再次查看。如需更换请重新上传。"
         style={{ marginBottom: 16 }}
       />
 
@@ -235,7 +235,7 @@ export default function SupplierChannels() {
           style={{ marginBottom: 16 }}
         />
         <Form getFormApi={(api) => (formRef.current = { formApi: api })} labelPosition="top">
-          <Form.Select field="type" label="提供商类型" rules={[{ required: true, message: '请选择类型' }]} style={{ width: '100%' }} placeholder="选择提供商">
+          <Form.Select field="type" label="渠道类型" rules={[{ required: true, message: '请选择渠道类型' }]} style={{ width: '100%' }} placeholder="选择渠道类型">
             {allowedTypeOptions.map((t) => (
               <Form.Select.Option key={t.value} value={t.value}>{t.label}</Form.Select.Option>
             ))}

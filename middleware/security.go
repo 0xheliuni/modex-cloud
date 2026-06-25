@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/modex/agt-vault/common"
+	"github.com/modex/modex-cloud/common"
 
 	"github.com/gin-gonic/gin"
 )
