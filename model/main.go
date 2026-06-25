@@ -45,8 +45,13 @@ func initCol() {
 	}
 }
 
-// Init opens the database from SQL_DSN (SQLite file if empty), runs migrations
-// and prepares cross-DB helpers.
+// Init opens the database from SQL_DSN, runs migrations and prepares cross-DB
+// helpers. SQL_DSN selects the driver:
+//   - empty                          -> SQLite at the default file "modex-cloud.db"
+//   - "sqlite://PATH" / "file:PATH"  -> SQLite at PATH (explicit)
+//   - a bare filesystem path or *.db -> SQLite at that path
+//   - "postgres://" / "postgresql://"-> PostgreSQL
+//   - anything else                  -> MySQL
 func Init() error {
 	dsn := os.Getenv("SQL_DSN")
 	var dialector gorm.Dialector
@@ -54,6 +59,9 @@ func Init() error {
 	case dsn == "":
 		UsingSQLite = true
 		dialector = sqlite.Open("modex-cloud.db")
+	case isSQLiteDSN(dsn):
+		UsingSQLite = true
+		dialector = sqlite.Open(sqliteFilePath(dsn))
 	case strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://"):
 		UsingPostgreSQL = true
 		dialector = postgres.Open(dsn)
@@ -76,6 +84,33 @@ func Init() error {
 		return fmt.Errorf("migrate: %w", err)
 	}
 	return nil
+}
+
+// isSQLiteDSN reports whether the DSN names a SQLite database rather than a
+// MySQL/Postgres server. We treat an explicit "sqlite://"/"file:" prefix, an
+// absolute or relative filesystem path, or a "*.db" value as SQLite. MySQL DSNs
+// (e.g. "user:pass@tcp(host)/db") never match these shapes.
+func isSQLiteDSN(dsn string) bool {
+	switch {
+	case strings.HasPrefix(dsn, "sqlite://"), strings.HasPrefix(dsn, "file:"):
+		return true
+	case strings.HasPrefix(dsn, "/"), strings.HasPrefix(dsn, "./"), strings.HasPrefix(dsn, "../"):
+		return true
+	case strings.HasSuffix(dsn, ".db"), strings.HasSuffix(dsn, ".sqlite"):
+		return true
+	default:
+		return false
+	}
+}
+
+// sqliteFilePath strips the optional "sqlite://" scheme, leaving the raw file
+// path the SQLite driver expects. "file:" DSNs are passed through unchanged
+// (the driver understands them, including ?cache=... query params).
+func sqliteFilePath(dsn string) string {
+	if strings.HasPrefix(dsn, "sqlite://") {
+		return strings.TrimPrefix(dsn, "sqlite://")
+	}
+	return dsn
 }
 
 func migrate() error {
