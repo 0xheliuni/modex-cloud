@@ -25,6 +25,10 @@ FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata && adduser -D -u 10001 appuser
 WORKDIR /app
 COPY --from=build /modex-cloud /app/modex-cloud
+# Data dir for the SQLite file (mounted as a volume in docker-compose). Owned by
+# appuser so the non-root process can create/write the database.
+RUN mkdir -p /data && chown appuser:appuser /data
+VOLUME ["/data"]
 USER appuser
 EXPOSE 3000
 ENTRYPOINT ["/app/modex-cloud"]
